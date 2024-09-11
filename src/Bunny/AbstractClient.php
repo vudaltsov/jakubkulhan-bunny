@@ -303,6 +303,7 @@ abstract class AbstractClient
      */
     protected function read()
     {
+        try {
         $s = @fread($this->stream, $this->frameMax);
 
         if ($s === false) {
@@ -321,6 +322,11 @@ abstract class AbstractClient
 
         $this->readBuffer->append($s);
         $this->lastRead = microtime(true);
+        } catch (ClientException $exception) {
+            $this->state = ClientStateEnum::ERROR;
+
+            throw $exception;
+        }
     }
 
     /**
@@ -328,6 +334,7 @@ abstract class AbstractClient
      */
     protected function write()
     {
+        try {
         if (($written = @fwrite($this->getStream(), $this->writeBuffer->read($this->writeBuffer->getLength()))) === false) {
             throw new ClientException("Could not write data to socket.");
         }
@@ -340,6 +347,11 @@ abstract class AbstractClient
 
         $this->writeBuffer->discard($written);
         $this->lastWrite = microtime(true);
+        } catch (ClientException $exception) {
+            $this->state = ClientStateEnum::ERROR;
+
+            throw $exception;
+        }
     }
 
     /**
@@ -382,7 +394,8 @@ abstract class AbstractClient
      */
     public function isConnected()
     {
-        return $this->state !== ClientStateEnum::NOT_CONNECTED && $this->state !== ClientStateEnum::ERROR;
+        return $this->state !== ClientStateEnum::NOT_CONNECTED && $this->state !== ClientStateEnum::ERROR
+            && max($this->lastRead, $this->lastWrite) + $this->options['heartbeat'] > microtime(true);
     }
 
     /**
